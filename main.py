@@ -30,10 +30,10 @@ env = RoutingEnv(
 check_env(env, warn=True)
 
 model = PPO("MlpPolicy", env, verbose=1)
-# model.learn(total_timesteps=500000)
-# model.save("./models/4layer_mazesolver")
-# del model # remove to demonstrate saving and loading
-model = PPO.load("./models/4layer_mazesolver")
+model.learn(total_timesteps=500000)
+model.save("./models/nlayer_mazesolver")
+del model # remove to demonstrate saving and loading
+model = PPO.load("./models/nlayer_mazesolver")
 
 obs = env.reset()
 done = False
