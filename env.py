@@ -18,7 +18,7 @@ class RoutingEnv(gym.Env):
                                         "M3": np.array([[]]),\
                                         "M4": np.array([[]])},
                  init_metal_edges   =  {"M1": np.array([[1, 1.5], [3, 1.5], [5, 1.5], [7, 1.5]]),\
-                                        "M2": np.array([[1.5, 1], [2.5, 1],\
+                                        "M2": np.array([[1.5, 1], [2.5, 1], [1.5, 3], [2.5, 3], [5.5, 3], [6.5, 3],\
                                                         [0.5, 0], [1.5, 0], [2.5, 0], [3.5, 0], [4.5, 0], [5.5, 0], [6.5, 0], [7.5, 0], [8.5, 0], [9.5, 0], [10.5, 0],\
                                                         [0.5, 8], [1.5, 8], [2.5, 8], [3.5, 8], [4.5, 8], [5.5, 8], [6.5, 8], [7.5, 8], [8.5, 8], [9.5, 8], [10.5, 8]]),\
                                         "M3": np.array([[]]),\
@@ -29,6 +29,7 @@ class RoutingEnv(gym.Env):
                  end_layer          =   1,
                  render_mode        =   "console"):
         
+
         super(RoutingEnv, self).__init__()
         self.render_mode            =   render_mode
         self.init_metal_nodes       =   init_metal_nodes
@@ -41,7 +42,10 @@ class RoutingEnv(gym.Env):
         self.goal_metal             =   end_layer       # if 2 : metal2 is the end point
         self.moving_point           =   copy.deepcopy(self.start_point)
         self.moving_metal           =   self.start_metal
-        self.trajectory             =   np.array([self.start_point])
+        self.trajectory             =   np.array([[self.moving_metal, self.start_point[0], self.start_point[1]]])
+        self.prv_point              =   copy.deepcopy(self.moving_point)
+        self.reward_mode            =   "coarse"
+
 
         self.max_x, self.max_y = start_point[0], start_point[1]
         self.min_x, self.min_y = start_point[0], start_point[1]
@@ -123,7 +127,6 @@ class RoutingEnv(gym.Env):
                     if self.grid_arrays[f"M{self.moving_metal+1}"]["node"]\
                         [self.moving_point[0]][self.moving_point[1] + y_] == 1:
                             vec_next_layer_obstacle = np.array([0, y_]); break
-                
 
         # Return Observation
         obs = np.array([self.moving_point[0], self.moving_point[1],\
@@ -136,6 +139,7 @@ class RoutingEnv(gym.Env):
         return obs
     
 
+
     def reset(self):
         """
         Important: the observation must be a numpy array
@@ -144,7 +148,8 @@ class RoutingEnv(gym.Env):
         # Initialize the agent
         self.moving_point = copy.deepcopy(self.start_point)
         self.moving_metal = self.start_metal
-        self.trajectory   = np.array([self.start_point])
+        self.trajectory   = np.array([[self.moving_metal, self.start_point[0], self.start_point[1]]])
+        self.prv_point    = copy.deepcopy(self.moving_point)
 
         obs = self.get_obs()
 
@@ -173,7 +178,9 @@ class RoutingEnv(gym.Env):
         if self.moving_point[1] < self.min_y: self.moving_point[1] = self.min_y
 
         # trajectory
-        self.trajectory = np.append(self.trajectory, self.moving_point.reshape(1, 2), axis=0)
+        self.trajectory = np.append(self.trajectory, np.array([self.moving_metal,\
+                                                               self.moving_point[0],\
+                                                               self.moving_point[1]]).reshape(1, 3), axis=0)
 
         # observation
         obs = self.get_obs()
@@ -183,54 +190,95 @@ class RoutingEnv(gym.Env):
                         and self.moving_point[1] == self.goal_point[1])
         obstacle_reached = bool(self.grid_arrays[f"M{self.moving_metal}"]["node"]\
                                 [self.moving_point[0]][self.moving_point[1]] == 1)
-        # reward
-        reward = -self.moving_metal
-        if goal_reached: reward += 100
-        elif obstacle_reached: reward -= 50
-        # if metal transition
-        if action not in [2, 3]: reward -= 1
+        
+        for edge in self.grid_arrays[f"M{self.moving_metal}"]["edge"]:
+            if len(edge) != 0:
+                if [edge[0], edge[1]] == [(self.moving_point[0]+self.prv_point[0])/2,\
+                                        (self.moving_point[1]+self.prv_point[1])/2]:
+                    obstacle_reached = False; break
+
+        # reward mode : coarse
+        if self.reward_mode == "coarse":
+            reward = -self.moving_metal
+            if goal_reached: reward += 50; # self.reward_mode = "fine"
+            elif obstacle_reached: reward -= 50
+            elif [self.prv_point[0], self.prv_point[1]]\
+                == [self.moving_point[0], self.moving_point[1]]: reward -=20
+            # if metal transition
+            if action not in [2, 3]: reward -= 20
+
+        # reward mode : fine
+        # if self.reward_mode == "fine":
+        #     reward -= 10
+
 
         # done
         done = bool(goal_reached or obstacle_reached)
 
         # Optionally we can pass additional info, we are not using that for now
-        info = {}
+        info = {"trajectory": self.trajectory}
 
-        print(f"obs         : {obs}")
-        print(f"trajectory  :\n{self.trajectory}")
-        print(f"done        : {done}")
+        self.prv_point = self.moving_point
 
         return obs, reward, done, info
+
+        
+
 
 
     def render(self):
         # agent is represented as a cross, rest as a dot
         if self.render_mode == "console":
             for key, value in self.grid_arrays.items():
-                print(key)
-                for i in range(self.grid_shape[0]):
-                    for j in range(self.grid_shape[1]):
-                        if self.moving_point[0] == i and self.moving_point[1] == j:
-                            print("*", end="")
+                print(f"{key} table")
+                print(f"moving metal : {self.moving_metal}")
+                for j in range(self.grid_shape[1]-1, -1, -1):
+                    for i in range(self.grid_shape[0]):
+                        if [i, j] == list(self.moving_point):
+                            print("@", end="")
                             for p in value["edge"]:
-                                if list(p) != [] and p[0] == i and p[1] == j+0.5:
+                                if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                    print("-", end=""); break
+                                elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                    print(" ", end="")
+                        elif [i, j] == list(self.start_point):
+                            print("S", end="")
+                            for p in value["edge"]:
+                                if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                    print("-", end=""); break
+                                elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                    print(" ", end="")
+                        elif [i, j] == list(self.goal_point):
+                            print("E", end="")
+                            for p in value["edge"]:
+                                if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                    print("-", end=""); break
+                                elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                    print(" ", end="")
+                        elif [i, j] in [list(traj[1:]) for traj in self.trajectory]:
+                            print(self.trajectory[[list(traj[1:]) for traj in self.trajectory].index([i, j])][0], end="")
+                            for p in value["edge"]:
+                                if list(p) != [] and p[0] == i+0.5 and p[1] == j:
                                     print("-", end=""); break
                                 elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
                                     print(" ", end="")
                         elif value["node"][i][j] == 1:
                             print("X", end="")
                             for p in value["edge"]:
-                                if list(p) != [] and p[0] == i and p[1] == j+0.5:
+                                if list(p) != [] and p[0] == i+0.5 and p[1] == j:
                                     print("-", end=""); break
                                 elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
                                     print(" ", end="")
                         else: print("O", end=" ")
                     print()
-                    for p in value["edge"]:
-                        if list(p) != [] and p[0] == i+0.5 and p[1] == j:
-                            print("|", end=" ")
-                        elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
-                            print(" ", end=" ")
+                    for i in range(self.grid_shape[0]):
+                        for p in value["edge"]:
+                            if list(p) != []:
+                                if p[0] == i and p[1] == j-0.5:
+                                    print("|", end=""); break
+                                elif p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]:
+                                    print(" ", end="")
+                        print("", end=" ")
                     print()
                 print()
 

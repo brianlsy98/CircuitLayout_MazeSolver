@@ -16,23 +16,20 @@ env = RoutingEnv(
                             "M3": np.array([[]]),\
                             "M4": np.array([[]])},
     init_metal_edges   =  { "M1": np.array([[1, 1.5], [3, 1.5], [5, 1.5], [7, 1.5]]),\
-                            "M2": np.array([[1.5, 1], [2.5, 1],\
+                            "M2": np.array([[1.5, 1], [2.5, 1], [1.5, 3], [2.5, 3], [5.5, 3], [6.5, 3],\
                                             [0.5, 0], [1.5, 0], [2.5, 0], [3.5, 0], [4.5, 0], [5.5, 0], [6.5, 0], [7.5, 0], [8.5, 0], [9.5, 0], [10.5, 0],\
                                             [0.5, 8], [1.5, 8], [2.5, 8], [3.5, 8], [4.5, 8], [5.5, 8], [6.5, 8], [7.5, 8], [8.5, 8], [9.5, 8], [10.5, 8]]),\
                             "M3": np.array([[]]),\
                             "M4": np.array([[]])},
-    start_point        =   np.array([2, 5]),
+    start_point        =   np.array([6, 3]),
     start_layer        =   1,
-    end_point          =   np.array([6, 3]),
+    end_point          =   np.array([2, 5]),
     end_layer          =   1,
     render_mode        =   "console"
 )
 check_env(env, warn=True)
 
 model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=500000)
-model.save("./models/nlayer_mazesolver")
-del model # remove to demonstrate saving and loading
 model = PPO.load("./models/nlayer_mazesolver")
 
 obs = env.reset()
@@ -40,4 +37,9 @@ done = False
 while not done:
     action, _states = model.predict(obs)
     obs, rewards, done, info = env.step(action)
+    traj = info["trajectory"]
+
+    print(f"obs         : {obs}")
+    print(f"trajectory  :\n {traj}")
+    print(f"done        : {done}")
     env.render()
