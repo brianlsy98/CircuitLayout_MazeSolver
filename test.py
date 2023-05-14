@@ -21,9 +21,9 @@ env = RoutingEnv(
                                             [0.5, 8], [1.5, 8], [2.5, 8], [3.5, 8], [4.5, 8], [5.5, 8], [6.5, 8], [7.5, 8], [8.5, 8], [9.5, 8], [10.5, 8]]),\
                             "M3": np.array([[]]),\
                             "M4": np.array([[]])},
-    start_point        =   np.array([6, 3]),
+    start_point        =   np.array([11, 0]),
     start_layer        =   1,
-    end_point          =   np.array([2, 5]),
+    end_point          =   np.array([0, 8]),
     end_layer          =   1,
     render_mode        =   "console"
 )
@@ -39,7 +39,7 @@ while not done:
     obs, rewards, done, info = env.step(action)
     traj = info["trajectory"]
 
-    print(f"obs         : {obs}")
+    print(f"obs         :\n {obs}")
     print(f"trajectory  :\n {traj}")
     print(f"done        : {done}")
     env.render()

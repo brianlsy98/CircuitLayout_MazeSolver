@@ -45,6 +45,8 @@ class RoutingEnv(gym.Env):
         self.trajectory             =   np.array([[self.moving_metal, self.start_point[0], self.start_point[1]]])
         self.prv_point              =   copy.deepcopy(self.moving_point)
         self.reward_mode            =   "coarse"
+        self.goal_reached           =   False
+        self.obstacle_reached       =   False
 
 
         self.max_x, self.max_y = start_point[0], start_point[1]
@@ -75,13 +77,14 @@ class RoutingEnv(gym.Env):
         n_move = 2 # +1 or -1
         self.action_space = spaces.Discrete(n_metal_transition * n_move)
         self.observation_space = spaces.Box(
-            low=-max(self.max_x, self.max_y), high=max(self.max_x, self.max_y), shape=(11,), dtype=int
+            low=-max(self.max_x, self.max_y), high=max(self.max_x, self.max_y), shape=(11,), dtype=np.float32
         )
 
 
     def get_obs(self):
-        # Vector to goal
+        # Vector to goal from moving point
         vec_to_goal = self.goal_point - self.moving_point
+        start_to_goal = self.goal_point - self.start_point
         # Vectors to nearest obstacles from metal 1, 2, 3, ...
         # M1, M3, ...
         if self.moving_metal % 2 == 1:
@@ -128,16 +131,54 @@ class RoutingEnv(gym.Env):
                         [self.moving_point[0]][self.moving_point[1] + y_] == 1:
                             vec_next_layer_obstacle = np.array([0, y_]); break
 
-        # Return Observation
-        obs = np.array([self.moving_point[0], self.moving_point[1],\
-                        self.moving_metal,\
-                        vec_to_goal[0], vec_to_goal[1],\
-                        vec_moving_layer_obstacle[0], vec_moving_layer_obstacle[1],\
-                        vec_prev_layer_obstacle[0], vec_prev_layer_obstacle[1],\
-                        vec_next_layer_obstacle[0], vec_next_layer_obstacle[1]])
+        # Return Observation (normalize)
+        obs = np.array([(self.moving_point[0]-self.min_x)/(self.max_x-self.min_x), (self.moving_point[1]-self.min_y)/(self.max_y-self.min_y),\
+                        self.moving_metal/len(self.grid_arrays),\
+                        vec_to_goal[0]/(abs(start_to_goal[0])+1), vec_to_goal[1]/(abs(start_to_goal[1])+1),\
+                        vec_moving_layer_obstacle[0]/(abs(start_to_goal[0])+1), vec_moving_layer_obstacle[1]/(abs(start_to_goal[1])+1),\
+                        vec_prev_layer_obstacle[0]/(abs(start_to_goal[0])+1), vec_prev_layer_obstacle[1]/(abs(start_to_goal[1])+1),\
+                        vec_next_layer_obstacle[0]/(abs(start_to_goal[0])+1), vec_next_layer_obstacle[1]/(abs(start_to_goal[1])+1)], dtype=np.float32)
         
         return obs
     
+
+    def check_termination(self):
+        self.goal_reached = bool(self.moving_point[0] == self.goal_point[0]\
+                        and self.moving_point[1] == self.goal_point[1])
+        self.obstacle_reached = bool(self.grid_arrays[f"M{self.moving_metal}"]["node"]\
+                                [self.moving_point[0]][self.moving_point[1]] == 1\
+                                or [self.prv_point[0], self.prv_point[1]] == [self.moving_point[0], self.moving_point[1]])
+        
+        for edge in self.grid_arrays[f"M{self.moving_metal}"]["edge"]:
+            if len(edge) != 0:
+                if [edge[0], edge[1]] == [(self.moving_point[0]+self.prv_point[0])/2,\
+                                        (self.moving_point[1]+self.prv_point[1])/2]:
+                    self.obstacle_reached = False; break
+
+        if [self.moving_point[0], self.moving_point[1]] == [self.start_point[0], self.start_point[1]]:
+            self.obstacle_reached = False
+        
+        # when the agent goes to the point in the trajectory
+        if [self.moving_point[0], self.moving_point[1]] in [list(traj[1:]) for traj in self.trajectory[:-1]]:
+            self.obstacle_reached = True
+
+
+    def get_rwd(self, action):
+
+        start_goal_dist = np.linalg.norm(self.goal_point - self.start_point)
+        agent_goal_dist = np.linalg.norm(self.goal_point - self.moving_point)
+        prv_goal_dist = np.linalg.norm(self.goal_point - self.prv_point)
+
+        reward = - (agent_goal_dist - prv_goal_dist)
+
+        if action in [4, 5] and self.moving_metal != 2: reward -= 1
+        if action in [2, 3]: reward += 1
+
+        if self.obstacle_reached:
+            reward -= start_goal_dist**2
+            reward += (start_goal_dist/(agent_goal_dist+1))**2
+
+        return reward
 
 
     def reset(self):
@@ -150,6 +191,7 @@ class RoutingEnv(gym.Env):
         self.moving_metal = self.start_metal
         self.trajectory   = np.array([[self.moving_metal, self.start_point[0], self.start_point[1]]])
         self.prv_point    = copy.deepcopy(self.moving_point)
+        self.reward_mode  = "coarse"
 
         obs = self.get_obs()
 
@@ -186,39 +228,18 @@ class RoutingEnv(gym.Env):
         obs = self.get_obs()
 
         # termination condition
-        goal_reached = bool(self.moving_point[0] == self.goal_point[0]\
-                        and self.moving_point[1] == self.goal_point[1])
-        obstacle_reached = bool(self.grid_arrays[f"M{self.moving_metal}"]["node"]\
-                                [self.moving_point[0]][self.moving_point[1]] == 1)
-        
-        for edge in self.grid_arrays[f"M{self.moving_metal}"]["edge"]:
-            if len(edge) != 0:
-                if [edge[0], edge[1]] == [(self.moving_point[0]+self.prv_point[0])/2,\
-                                        (self.moving_point[1]+self.prv_point[1])/2]:
-                    obstacle_reached = False; break
+        self.check_termination()
 
-        # reward mode : coarse
-        if self.reward_mode == "coarse":
-            reward = -self.moving_metal
-            if goal_reached: reward += 50; # self.reward_mode = "fine"
-            elif obstacle_reached: reward -= 50
-            elif [self.prv_point[0], self.prv_point[1]]\
-                == [self.moving_point[0], self.moving_point[1]]: reward -=20
-            # if metal transition
-            if action not in [2, 3]: reward -= 20
-
-        # reward mode : fine
-        # if self.reward_mode == "fine":
-        #     reward -= 10
-
+        # REWARD
+        reward = self.get_rwd(action)
 
         # done
-        done = bool(goal_reached or obstacle_reached)
+        done = bool(self.goal_reached or self.obstacle_reached)
 
         # Optionally we can pass additional info, we are not using that for now
         info = {"trajectory": self.trajectory}
 
-        self.prv_point = self.moving_point
+        self.prv_point = copy.deepcopy(self.moving_point)
 
         return obs, reward, done, info
 

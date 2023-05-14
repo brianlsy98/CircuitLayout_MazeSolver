@@ -1,10 +1,14 @@
 import gymnasium as gym
 import numpy as np
 
+import torch
+
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 
 from env import RoutingEnv
+
+device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
 # Parallel environments
 env = RoutingEnv(
@@ -21,18 +25,28 @@ env = RoutingEnv(
                                             [0.5, 8], [1.5, 8], [2.5, 8], [3.5, 8], [4.5, 8], [5.5, 8], [6.5, 8], [7.5, 8], [8.5, 8], [9.5, 8], [10.5, 8]]),\
                             "M3": np.array([[]]),\
                             "M4": np.array([[]])},
-    start_point        =   np.array([2, 5]),
+    start_point        =   np.array([11, 0]),
     start_layer        =   1,
-    end_point          =   np.array([6, 3]),
+    end_point          =   np.array([0, 8]),
     end_layer          =   1,
     render_mode        =   "console"
 )
 check_env(env, warn=True)
 
 model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=300000)
+# for i in range(env.min_x+2, env.max_x-1, 2):
+#     for j in range(env.min_y+2, env.max_y-1, 2):
+#         env.start_point = np.array([i, j]); env.end_point = np.array([env.max_x - i, env.max_y - j])
+#         if [env.start_point[0], env.start_point[1]] == [env.end_point[0], env.end_point[1]]:
+#             env.end_point += np.array([1, 0])
+#         model.set_env(env)
+#         model.learn(total_timesteps=100000)
+
+
+model.learn(total_timesteps=15000*(abs(env.start_point-env.goal_point)[0]+abs(env.start_point-env.goal_point)[1]))
 model.save("./models/nlayer_mazesolver")
-del model # remove to demonstrate saving and loading
+
+del model
 model = PPO.load("./models/nlayer_mazesolver")
 
 obs = env.reset()
