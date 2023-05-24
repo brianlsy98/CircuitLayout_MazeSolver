@@ -1,2 +1,2 @@
 # RL_mazesolver_model save directory
-models saved for maze solving
+models saved for 2layer maze solving

@@ -1,2 +1,3 @@
 # RL_mazesolver
-RL algorithms for maze solving (for layout automatic routing)
+Maze solving techniques for layout automatic routing.<br>
+Implemented environments, and used PPO algorithm from stable_baselines3.
