@@ -7,28 +7,21 @@ class RoutingEnv(gym.Env):
 
     metadata = {"render_modes": ["console"]}
 
-    UP = 0; DOWN = 1; LEFT = 2; RIGHT = 3
-
     def __init__(self,
                  init_metal_nodes   =  {"M1": np.array([[2, 3], [2, 5], [6, 3], [6, 5],
                                                         [1, 1], [1, 2], [3, 1], [3, 2], [5, 1], [5, 2], [7, 1], [7, 2]]),\
                                         "M2": np.array([[1, 1], [2, 1], [3, 1], [1, 3], [2, 3], [3, 3], [5, 3], [6, 3], [7, 3],\
                                                         [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0], [8, 0], [9, 0], [10, 0], [11, 0],\
-                                                        [0, 8], [1, 8], [2, 8], [3, 8], [4, 8], [5, 8], [6, 8], [7, 8], [8, 8], [9, 8], [10, 8], [11, 8]]),\
-                                        "M3": np.array([[]]),\
-                                        "M4": np.array([[]])},
+                                                        [0, 8], [1, 8], [2, 8], [3, 8], [4, 8], [5, 8], [6, 8], [7, 8], [8, 8], [9, 8], [10, 8], [11, 8]])},
                  init_metal_edges   =  {"M1": np.array([[1, 1.5], [3, 1.5], [5, 1.5], [7, 1.5]]),\
                                         "M2": np.array([[1.5, 1], [2.5, 1], [1.5, 3], [2.5, 3], [5.5, 3], [6.5, 3],\
                                                         [0.5, 0], [1.5, 0], [2.5, 0], [3.5, 0], [4.5, 0], [5.5, 0], [6.5, 0], [7.5, 0], [8.5, 0], [9.5, 0], [10.5, 0],\
-                                                        [0.5, 8], [1.5, 8], [2.5, 8], [3.5, 8], [4.5, 8], [5.5, 8], [6.5, 8], [7.5, 8], [8.5, 8], [9.5, 8], [10.5, 8]]),\
-                                        "M3": np.array([[]]),\
-                                        "M4": np.array([[]])},
+                                                        [0.5, 8], [1.5, 8], [2.5, 8], [3.5, 8], [4.5, 8], [5.5, 8], [6.5, 8], [7.5, 8], [8.5, 8], [9.5, 8], [10.5, 8]])},
                  start_point        =   np.array([2, 5]),
-                 start_layer        =   1,
                  end_point          =   np.array([6, 3]),
-                 end_layer          =   1,
+                 routing_grid       =   "12",
                  render_mode        =   "console"):
-        
+
 
         super(RoutingEnv, self).__init__()
         self.render_mode            =   render_mode
@@ -37,11 +30,10 @@ class RoutingEnv(gym.Env):
         self.metal_nodes            =   copy.deepcopy(self.init_metal_nodes)
         self.metal_edges            =   copy.deepcopy(self.init_metal_edges)
         self.start_point            =   start_point
-        self.start_metal            =   start_layer     # if 1 : metal1 is the start point
         self.goal_point             =   end_point
-        self.goal_metal             =   end_layer       # if 2 : metal2 is the end point
+        self.routing_grid           =   routing_grid
         self.moving_point           =   copy.deepcopy(self.start_point)
-        self.moving_metal           =   self.start_metal
+        self.moving_metal           =   int(routing_grid[0])
         self.trajectory             =   np.array([[self.moving_metal, self.start_point[0], self.start_point[1]]])
         self.prv_point              =   copy.deepcopy(self.moving_point)
         self.reward_mode            =   "coarse"
@@ -171,12 +163,13 @@ class RoutingEnv(gym.Env):
 
         reward = - (agent_goal_dist - prv_goal_dist)
 
-        if action in [4, 5] and self.moving_metal != 2: reward -= 1
-        if action in [2, 3]: reward += 1
+        if action in [2, 3]:
+            reward += 0
+        else:
+            reward += -1
 
         if self.obstacle_reached:
             reward -= start_goal_dist**2
-            reward += (start_goal_dist/(agent_goal_dist+1))**2
 
         return reward
 
@@ -188,7 +181,7 @@ class RoutingEnv(gym.Env):
         """
         # Initialize the agent
         self.moving_point = copy.deepcopy(self.start_point)
-        self.moving_metal = self.start_metal
+        self.moving_metal = int(self.routing_grid[0])
         self.trajectory   = np.array([[self.moving_metal, self.start_point[0], self.start_point[1]]])
         self.prv_point    = copy.deepcopy(self.moving_point)
         self.reward_mode  = "coarse"
