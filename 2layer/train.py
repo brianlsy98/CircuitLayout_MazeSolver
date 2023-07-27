@@ -21,7 +21,7 @@ from stable_baselines3 import PPO
 
 model = PPO("MlpPolicy", env, verbose=1)
 
-model.learn(total_timesteps=20000*(abs(env.start_point-env.goal_point)[0]+abs(env.start_point-env.goal_point)[1]))
+model.learn(total_timesteps=10000*(abs(env.start_point-env.goal_point)[0]+abs(env.start_point-env.goal_point)[1]))
 model.save("./models/2layer_mazesolver")
 
 del model
