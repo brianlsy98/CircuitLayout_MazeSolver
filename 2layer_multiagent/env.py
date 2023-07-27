@@ -61,8 +61,13 @@ class Agent():
         self.start_points = get_routed_points(self.start_point, self.metal_edges)
         self.goal_point = copy.deepcopy(end_point)
         self.goal_points = get_routed_points(self.goal_point, self.metal_edges)
+        print()
+        print("starts", self.start_points)
+        print("goals", self.goal_points)
         self.start_point, self.goal_point\
                                     =   update_start_goal_points(self.start_points, self.goal_points)
+        print("start", self.start_point)
+        print("goal", self.goal_point)
 
         self.moving_point           =   copy.deepcopy(self.start_point)
         self.prv_point              =   copy.deepcopy(self.moving_point)
@@ -481,17 +486,19 @@ class Agent():
         self.trajectory             =   np.array([self.start_point])
         self.via_tag                =   [False]
 
+        self.goal_reached           =   False
+        self.obstacle_reached       =   False
+
         obs = self.get_obs()
         return obs
 
     def check_termination(self):
         # if moving point meets the obstacle : obstacle reached
         self.obstacle_reached = bool(list(self.moving_point) in [list(el) for el in self.metal_nodes]\
-                                    or list(self.prv_point) == list(self.moving_point))
+                                    and list(self.moving_point) not in [list(goal) for goal in self.goal_points])
         
         if list(self.prv_point) in [list(el) for el in self.metal_nodes] and list(self.moving_point) in [list(el) for el in self.metal_nodes]:
-            if list(np.mean([self.prv_point, self.moving_point], axis=0)) in [list(el) for el in self.metal_edges]\
-                or list(self.prv_point) == list(self.moving_point):
+            if list(np.mean([self.prv_point, self.moving_point], axis=0)) in [list(el) for el in self.metal_edges]:
                     self.obstacle_reached = False
 
         # when the agent goes again to the point in the trajectory
@@ -543,6 +550,7 @@ class Agent():
 
     def render(self):
         # agent is represented as a cross, rest as a dot
+        print("========================== Rendering =======================")
         if self.render_mode == "console":
             for key, value in self.grid_arrays.items():
                 if int(key[-1]) in [self.lower_layer, self.upper_layer]:
@@ -626,7 +634,8 @@ class Agent():
         print("start point : ", self.start_point)
         print(self.trajectory)
         print("goal point  : ", self.goal_point)
-
+        print("============================================================")
+        print()
 
 
 
@@ -634,14 +643,15 @@ class Agent():
 class RoutingEnv(gym.Env):
     def __init__(self,
                  init_metal_nodes   =   np.array([[2, 3, 1], [2, 5, 1], [6, 3, 1], [6, 5, 1],\
-                                                  [1, 1, 1], [1, 2, 1], [3, 1, 1], [3, 2, 1], [5, 1, 1], [5, 2, 1], [7, 1, 1], [7, 2, 1],\
+                                                  [1, 1, 1], [1, 2, 1], [3, 1, 1], [3, 2, 1], [5, 1, 1], [5, 2, 1], [7, 1, 1], [7, 1, 2], [7, 2, 1],\
                                                   [1, 1, 2], [2, 1, 2], [3, 1, 2], [1, 3, 2], [2, 3, 2], [3, 3, 2], [5, 3, 2], [6, 3, 2], [7, 3, 2],\
                                                   [0, 0, 2], [1, 0, 2], [2, 0, 2], [3, 0, 2], [4, 0, 2], [5, 0, 2], [6, 0, 2], [7, 0, 2], [8, 0, 2], [9, 0, 2], [10, 0, 2], [11, 0, 2],\
                                                   [0, 8, 2], [1, 8, 2], [2, 8, 2], [3, 8, 2], [4, 8, 2], [5, 8, 2], [6, 8, 2], [7, 8, 2], [8, 8, 2], [9, 8, 2], [10, 8, 2], [11, 8, 2]]),
                  init_metal_edges   =   np.array([[1, 1.5, 1], [3, 1.5, 1], [5, 1.5, 1], [7, 1.5, 1],
                                                   [1.5, 1, 2], [2.5, 1, 2], [1.5, 3, 2], [2.5, 3, 2], [5.5, 3, 2], [6.5, 3, 2],
                                                   [0.5, 0, 2], [1.5, 0, 2], [2.5, 0, 2], [3.5, 0, 2], [4.5, 0, 2], [5.5, 0, 2], [6.5, 0, 2], [7.5, 0, 2], [8.5, 0, 2], [9.5, 0, 2], [10.5, 0, 2],\
-                                                  [0.5, 8, 2], [1.5, 8, 2], [2.5, 8, 2], [3.5, 8, 2], [4.5, 8, 2], [5.5, 8, 2], [6.5, 8, 2], [7.5, 8, 2], [8.5, 8, 2], [9.5, 8, 2], [10.5, 8, 2]]),
+                                                  [0.5, 8, 2], [1.5, 8, 2], [2.5, 8, 2], [3.5, 8, 2], [4.5, 8, 2], [5.5, 8, 2], [6.5, 8, 2], [7.5, 8, 2], [8.5, 8, 2], [9.5, 8, 2], [10.5, 8, 2],\
+                                                  [7, 1, 1.5]]),
                  points_to_route    =   {"A": np.array([[8, 3, 2], [10, 5, 2]]),
                                          "B": np.array([[2, 3, 2], [4, 5, 2]]),
                                          "internal": np.array([[2, 2, 2], [7, 1, 2]]),
@@ -696,8 +706,6 @@ class RoutingEnv(gym.Env):
                 shape=(int(1 + 2 + 6*2**2-2*2+3),), dtype=np.float32)
         self.observation_space = spaces.Dict(obs_dict)
 
-
-
     def get_rwd(self):
         reward = 0
 
@@ -712,7 +720,6 @@ class RoutingEnv(gym.Env):
                 reward -= start_goal_dist
 
         return reward
-
 
     def reset(self):
         """
@@ -742,7 +749,6 @@ class RoutingEnv(gym.Env):
             obstacle_reached.append(agent.obstacle_reached)
         self.goal_reached = goal_reached
         self.obstacle_reached = obstacle_reached
-
 
     def step(self, action):
         # action[i] == 0:   # agent i : + 1

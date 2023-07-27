@@ -21,8 +21,18 @@ while not done:
     traj = info["trajectories"]
     vts = info["via_tags"]
 
-    print(f"obs         :\n {obs}")
-    print(f"trajectories:\n {traj}")
-    print(f"via_tags    :\n {vts}")
+    print()
+    print("obs         :")
+    for k, v in obs.items():
+        print(k)
+        print(v)
+    print()
+    print("trajectories:")
+    for t in traj:
+        print(t)
+    print()
+    print(f"via_tags    :")
+    for vt in vts:
+        print(vt)
     print(f"done        : {done}")
     env.render()

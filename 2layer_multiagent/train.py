@@ -19,11 +19,14 @@ check_env(env, warn=True)
 # model = PPO("MultiInputPolicy", env, verbose=1, device="mps")
 model = PPO("MultiInputPolicy", env, verbose=1, device="cpu")
 if os.path.isfile(f'./models/2layer_mazesolver_multiagent.zip'):
-    print(f"load nlayer mazesolver.zip")
+    print(f"... loading multiagent 2layer mazesolver ...")
     model = PPO.load(f"./models/2layer_mazesolver_multiagent", env=env)
 
-model.learn(total_timesteps=30000*len(env.agents))
-model.save("./models/2layer_mazesolver_multiagent")
+for i in range(5):
+    model.learn(total_timesteps=20000)
+    print("... checkpoint saved ...")
+    model.save(f"./models/checkpoint_{i}")
+    model.save("./models/2layer_mazesolver_multiagent")
 
 del model
 model = PPO.load("./models/2layer_mazesolver_multiagent")
