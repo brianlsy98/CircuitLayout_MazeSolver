@@ -61,13 +61,16 @@ class Agent():
         self.start_points = get_routed_points(self.start_point, self.metal_edges)
         self.goal_point = copy.deepcopy(end_point)
         self.goal_points = get_routed_points(self.goal_point, self.metal_edges)
-        print()
-        print("starts", self.start_points)
-        print("goals", self.goal_points)
+        # print()
+        # print("starts", self.start_points)
+        # print("goals", self.goal_points)
         self.start_point, self.goal_point\
                                     =   update_start_goal_points(self.start_points, self.goal_points)
-        print("start", self.start_point)
-        print("goal", self.goal_point)
+        # print("start", self.start_point)
+        # print("goal", self.goal_point)
+
+        self.collaborative_agents_inds   = []
+        self.competitive_agents_inds     = []
 
         self.moving_point           =   copy.deepcopy(self.start_point)
         self.prv_point              =   copy.deepcopy(self.moving_point)
@@ -105,6 +108,7 @@ class Agent():
             self.grid_arrays[f"M{self.upper_layer}"] = {"node": copy.deepcopy(self.grid_array),\
                                                         "edge": np.array([[]])}
 
+    '''
     def get_obs_lidarlike(self):
         # Vector to goal from moving point
         vec_to_goal = self.goal_point - self.moving_point
@@ -453,8 +457,17 @@ class Agent():
         obs = np.append(obs, near_objects)
 
         return obs
+    '''
+        
+    def get_obs(self, agents_list):
+        # collaborative & competitive agent points
+        competitive_agps = []; collaborative_agps = []
+        for i, ag in enumerate(agents_list):
+            if i in self.collaborative_agents_inds:
+                collaborative_agps.append(ag.moving_point)
+            elif i in self.competitive_agents_inds:
+                competitive_agps.append(ag.moving_point)
 
-    def get_obs(self):
         # Vector to goal from moving point
         vec_to_goal = self.goal_point - self.moving_point
 
@@ -466,12 +479,17 @@ class Agent():
         for z in range(-1, 2):
             for y in range(-2+abs(z), 2-abs(z)+1):
                 for x in range(-2+abs(z)+abs(y), 2-abs(z)-abs(y)+1):
-                    if list(self.moving_point + np.array([x, y, z], dtype=np.float32)) in [list(goal) for goal in self.goal_points]:
+                    search_point = list(self.moving_point + np.array([x, y, z], dtype=np.float32))
+                    if search_point in [list(goal) for goal in self.goal_points]:
                         # goal points
                         appending_int = np.float32(1.0)
-                    elif list(self.moving_point + np.array([x, y, z], dtype=np.float32)) in [list(node) for node in self.metal_nodes]:
+                    elif search_point in [list(node) for node in self.metal_nodes]:
                         # obstacle points
                         appending_int = np.float32(-1.0)
+                    elif search_point in [list(agent_point) for agent_point in competitive_agps]:
+                        appending_int = np.float32(-0.5)
+                    elif search_point in [list(agent_point) for agent_point in collaborative_agps]:
+                        appending_int = np.float32(0.5)
                     else:
                         # start points & empty points
                         appending_int = np.float32(0.0)
@@ -489,8 +507,6 @@ class Agent():
         self.goal_reached           =   False
         self.obstacle_reached       =   False
 
-        obs = self.get_obs()
-        return obs
 
     def check_termination(self):
         # if moving point meets the obstacle : obstacle reached
@@ -564,8 +580,8 @@ class Agent():
                                     if list(p) != [] and p[0] == i+0.5 and p[1] == j:
                                         print("-", end=""); break
                                     elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
-                                        if [i+1, j] in [list(traj[:-1]) for traj in self.trajectory]\
-                                            and [i, j] in [list(traj[:-1]) for traj in self.trajectory]:
+                                        if [i+1, j] in agents_trajectories\
+                                            and [i, j] in agents_trajectories:
                                                 print("*", end=""); break
                                         else:
                                             print(" ", end=""); break
@@ -575,8 +591,8 @@ class Agent():
                                     if list(p) != [] and p[0] == i+0.5 and p[1] == j:
                                         print("-", end=""); break
                                     elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
-                                        if [i+1, j] in [list(traj[:-1]) for traj in self.trajectory]\
-                                            and [i, j] in [list(traj[:-1]) for traj in self.trajectory]:
+                                        if [i+1, j] in agents_trajectories\
+                                            and [i, j] in agents_trajectories:
                                                 print("*", end=""); break
                                         else:
                                             print(" ", end=""); break                         
@@ -586,19 +602,19 @@ class Agent():
                                     if list(p) != [] and p[0] == i+0.5 and p[1] == j:
                                         print("-", end=""); break
                                     elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
-                                        if [i+1, j] in [list(traj[:-1]) for traj in self.trajectory]\
-                                            and [i, j] in [list(traj[:-1]) for traj in self.trajectory]:
+                                        if [i+1, j] in agents_trajectories\
+                                            and [i, j] in agents_trajectories:
                                                 print("*", end=""); break
                                         else:
                                             print(" ", end=""); break
-                            elif [i, j] in [list(traj[:-1]) for traj in self.trajectory]:
-                                print(self.trajectory[[list(traj[:-1]) for traj in self.trajectory].index([i, j])][-1], end="")
+                            elif [i, j] in agents_trajectories:
+                                print(self.trajectory[agents_trajectories.index([i, j])][-1], end="")
                                 for p in value["edge"]:
                                     if list(p) != [] and p[0] == i+0.5 and p[1] == j:
                                         print("-", end=""); break
                                     elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
-                                        if [i+1, j] in [list(traj[:-1]) for traj in self.trajectory]\
-                                            and [i, j] in [list(traj[:-1]) for traj in self.trajectory]:
+                                        if [i+1, j] in agents_trajectories\
+                                            and [i, j] in agents_trajectories:
                                                 print("*", end=""); break
                                         else:
                                             print(" ", end=""); break
@@ -608,8 +624,8 @@ class Agent():
                                     if list(p) != [] and p[0] == i+0.5 and p[1] == j:
                                         print("-", end=""); break
                                     elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
-                                        if [i+1, j] in [list(traj[:-1]) for traj in self.trajectory]\
-                                            and [i, j] in [list(traj[:-1]) for traj in self.trajectory]:
+                                        if [i+1, j] in agents_trajectories\
+                                            and [i, j] in agents_trajectories:
                                                 print("*", end=""); break
                                         else:
                                             print(" ", end=""); break
@@ -621,8 +637,8 @@ class Agent():
                                     if p[0] == i and p[1] == j-0.5:
                                         print("|", end=""); break
                                     elif p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]:
-                                        if [i, j-1] in [list(traj[:-1]) for traj in self.trajectory]\
-                                            and [i, j] in [list(traj[:-1]) for traj in self.trajectory]:
+                                        if [i, j-1] in agents_trajectories\
+                                            and [i, j] in agents_trajectories:
                                                 print("*", end=""); break
                                         else:
                                             print(" ", end=""); break
@@ -679,6 +695,8 @@ class RoutingEnv(gym.Env):
             if point[0] <= self.min_x: self.min_x = point[0]
             if point[1] <= self.min_y: self.min_y = point[1]
 
+        self.update_grid_arrays()
+
         #### agent generation ####
         self.agents = []
         for key, value in self.points_to_route.items():
@@ -687,9 +705,13 @@ class RoutingEnv(gym.Env):
                                     start_point=value[i], end_point=value[i+1],
                                     max_x=self.max_x, min_x=self.min_x, max_y=self.max_y, min_y=self.min_y,
                                     upper_layer=self.upper_layer, lower_layer=self.lower_layer, render_mode = "console"))
-        ##########################
-
-        
+        for j, ag0 in enumerate(self.agents):
+            for i, ag1 in enumerate(self.agents):
+                if ag0.name != ag1.name and i != j:
+                    ag0.competitive_agents_inds.append(i)
+                elif ag0.name == ag1.name and i != j:
+                    ag0.collaborative_agents_inds.append(i)
+        ##########################        
 
         self.trajectories           =   [agent.trajectory for agent in self.agents]
         self.via_tags               =   [agent.via_tag for agent in self.agents]
@@ -706,6 +728,27 @@ class RoutingEnv(gym.Env):
                 shape=(int(1 + 2 + 6*2**2-2*2+3),), dtype=np.float32)
         self.observation_space = spaces.Dict(obs_dict)
 
+
+
+    def update_grid_arrays(self):
+        self.grid_array             =   np.zeros((self.max_x - self.min_x + 1, self.max_y - self.min_y + 1))
+        self.grid_shape             =   np.shape(self.grid_array)
+        self.grid_arrays            =   dict()
+        for key in range(min([p[-1] for p in self.metal_nodes]), max([p[-1] for p in self.metal_nodes]) + 1):
+            self.grid_arrays[f"M{key}"] = {"node": copy.deepcopy(self.grid_array),\
+                                           "edge": np.array([edge[:-1] for edge in self.metal_edges if edge[-1] == key])}
+        for point in self.metal_nodes:
+            self.grid_arrays[f"M{point[-1]}"]["node"][point[0]][point[1]] = 1
+
+        if f"M{self.lower_layer}" not in self.grid_arrays.keys():
+            self.grid_arrays[f"M{self.lower_layer}"] = {"node": copy.deepcopy(self.grid_array),\
+                                                        "edge": np.array([[]])}
+        if f"M{self.upper_layer}" not in self.grid_arrays.keys():
+            self.grid_arrays[f"M{self.upper_layer}"] = {"node": copy.deepcopy(self.grid_array),\
+                                                        "edge": np.array([[]])}
+
+
+
     def get_rwd(self):
         reward = 0
 
@@ -721,6 +764,8 @@ class RoutingEnv(gym.Env):
 
         return reward
 
+
+
     def reset(self):
         """
         Important: the observation must be a numpy array
@@ -734,11 +779,15 @@ class RoutingEnv(gym.Env):
 
         return obs
 
+
+
     def get_obs(self):
         obs = dict()
         for i, agent in enumerate(self.agents):
-            obs[f"agent_{i}"] = agent.get_obs()
+            obs[f"agent_{i}"] = agent.get_obs(self.agents)
         return obs
+
+
 
     def check_termination(self):
         goal_reached = []
@@ -749,6 +798,8 @@ class RoutingEnv(gym.Env):
             obstacle_reached.append(agent.obstacle_reached)
         self.goal_reached = goal_reached
         self.obstacle_reached = obstacle_reached
+
+
 
     def step(self, action):
         # action[i] == 0:   # agent i : + 1
@@ -786,9 +837,102 @@ class RoutingEnv(gym.Env):
 
         return obs, reward, done, info
 
+    # def render(self):
+    #     for agent in self.agents:
+    #         agent.render()
+
+
+
     def render(self):
-        for agent in self.agents:
-            agent.render()
+        # agent is represented as a cross, rest as a dot
+        print("========================== Rendering =======================")
+        agents_current_points = [list(agent.moving_point[:-1]) for agent in self.agents]
+        agents_start_points = [list(agent.start_point[:-1]) for agent in self.agents]
+        agents_goal_points = [list(agent.goal_point[:-1]) for agent in self.agents]
+        agents_trajectories = []
+        all_trajectories = []
+        for trajectory in self.trajectories:
+            agents_trajectories = agents_trajectories + [list(t[:-1]) for t in trajectory]
+            all_trajectories = all_trajectories + [list(t) for t in trajectory]
+
+        if self.render_mode == "console":
+            for key, value in self.grid_arrays.items():
+                if int(key[-1]) in [self.lower_layer, self.upper_layer]:
+                    print(f"{key} table")
+                    print(f"moving metals : {[agent.moving_point[-1] for agent in self.agents]}")
+                    for j in range(self.max_y, self.min_y-1, -1):
+                        for i in range(self.min_x, self.max_x+1):
+                            if [i, j] in agents_current_points:
+                                print("@", end="")
+                                for p in value["edge"]:
+                                    if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                        print("-", end=""); break
+                                    elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                        if [i+1, j] in agents_trajectories and [i, j] in agents_trajectories:
+                                                print("*", end=""); break
+                                        else:
+                                            print(" ", end=""); break
+                            elif [i, j] in agents_start_points:
+                                print("S", end="")
+                                for p in value["edge"]:
+                                    if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                        print("-", end=""); break
+                                    elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                        if [i+1, j] in agents_trajectories and [i, j] in agents_trajectories:
+                                                print("*", end=""); break
+                                        else:
+                                            print(" ", end=""); break                         
+                            elif [i, j] in agents_goal_points:
+                                print("E", end="")
+                                for p in value["edge"]:
+                                    if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                        print("-", end=""); break
+                                    elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                        if [i+1, j] in agents_trajectories and [i, j] in agents_trajectories:
+                                                print("*", end=""); break
+                                        else:
+                                            print(" ", end=""); break
+                            elif [i, j] in agents_trajectories:
+                                print(all_trajectories[agents_trajectories.index([i, j])][-1], end="")
+                                for p in value["edge"]:
+                                    if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                        print("-", end=""); break
+                                    elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                        if [i+1, j] in agents_trajectories and [i, j] in agents_trajectories:
+                                                print("*", end=""); break
+                                        else:
+                                            print(" ", end=""); break
+                            elif value["node"][i][j] == 1:
+                                print("X", end="")
+                                for p in value["edge"]:
+                                    if list(p) != [] and p[0] == i+0.5 and p[1] == j:
+                                        print("-", end=""); break
+                                    elif list(p) == [] or (p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]):
+                                        if [i+1, j] in agents_trajectories and [i, j] in agents_trajectories:
+                                                print("*", end=""); break
+                                        else:
+                                            print(" ", end=""); break
+                            else: print("O", end=" ")
+                        print()
+                        for i in range(self.min_x, self.max_x+1):
+                            for p in value["edge"]:
+                                if list(p) != []:
+                                    if p[0] == i and p[1] == j-0.5:
+                                        print("|", end=""); break
+                                    elif p[0] == value["edge"][-1][0] and p[1] == value["edge"][-1][1]:
+                                        if [i, j-1] in agents_trajectories and [i, j] in agents_trajectories:
+                                                print("*", end=""); break
+                                        else:
+                                            print(" ", end=""); break
+                            print("", end=" ")
+                        print()
+                    print()
+        print("goal reached     : ", self.goal_reached)
+        print("obstacle reached : ", self.obstacle_reached)
+        print("============================================================")
+        print()
+    
+
 
     def close(self):
         pass
